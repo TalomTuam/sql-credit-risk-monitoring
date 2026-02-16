@@ -1,0 +1,24 @@
+DELETE FROM watchlist;
+
+INSERT INTO watchlist (company_id, company_name, price_date, debt_to_market_cap, vol_2, risk_flag, rule_trigger)
+SELECT
+    l.company_id,
+    l.company_name,
+    l.price_date,
+    l.debt_to_market_cap,
+    v.vol_2,
+    CASE
+        WHEN l.debt_to_market_cap > 0.9 OR v.vol_2 > 0.04 THEN 'RISKY'
+        ELSE 'OK'
+    END AS risk_flag,
+    CASE
+        WHEN l.debt_to_market_cap > 0.9 AND v.vol_2 > 0.04 THEN 'LEVERAGE+VOL'
+        WHEN l.debt_to_market_cap > 0.9 THEN 'LEVERAGE'
+        WHEN v.vol_2 > 0.04 THEN 'VOL'
+        ELSE 'NONE'
+    END AS rule_trigger
+FROM v_leverage l
+JOIN v_vol_2 v
+    ON l.company_id = v.company_id
+   AND l.price_date = v.price_date
+WHERE l.as_of_date = '2025-12-31';

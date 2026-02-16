@@ -1,0 +1,66 @@
+CREATE VIEW v_market_cap AS
+SELECT
+    company_id,
+    price_date,
+    equity_price,
+    shares_outstanding,
+    equity_price * shares_outstanding AS market_cap
+FROM equity_prices;
+
+CREATE VIEW v_equity_returns AS
+SELECT
+    company_id,
+    price_date,
+    equity_price,
+    (equity_price - LAG(equity_price) OVER (
+        PARTITION BY company_id
+        ORDER BY price_date
+    )) 
+    / LAG(equity_price) OVER (
+        PARTITION BY company_id
+        ORDER BY price_date
+    ) AS daily_return
+FROM equity_prices;
+
+CREATE VIEW v_leverage AS
+SELECT
+    c.company_id,
+    c.company_name,
+    e.price_date,
+    d.as_of_date,
+    d.face_value_debt,
+    e.equity_price * e.shares_outstanding AS market_cap,
+    d.face_value_debt / (e.equity_price * e.shares_outstanding) AS debt_to_market_cap
+FROM companies c
+JOIN equity_prices e
+    ON c.company_id = e.company_id
+JOIN debt d
+    ON c.company_id = d.company_id;
+
+CREATE VIEW v_vol_2 AS
+SELECT
+    company_id,
+    price_date,
+    SQRT(
+        AVG(daily_return * daily_return) OVER (
+            PARTITION BY company_id
+            ORDER BY price_date
+            ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+        )
+        -
+        (
+            AVG(daily_return) OVER (
+                PARTITION BY company_id
+                ORDER BY price_date
+                ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+            )
+            *
+            AVG(daily_return) OVER (
+                PARTITION BY company_id
+                ORDER BY price_date
+                ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+            )
+        )
+    ) AS vol_2
+FROM v_equity_returns
+WHERE daily_return IS NOT NULL;
